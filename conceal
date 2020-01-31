@@ -1,0 +1,62 @@
+#!/bin/bash
+set -eo pipefail
+
+main() {
+    check_args "$@"
+    check_distro
+    SECRET=$(prompt_secret)
+    add_secret "$1" "$SECRET"
+    check_secret "$1"
+}
+
+check_args() {
+    # Check for required argument value, exit if not found.
+    if [[ -z $1 ]]; then
+        echo -e "\n[ERROR] Missing username or variable path."
+        echo -e "\n\nPlease re-run and provide the argument."
+        echo -e "\n\ne.g. $ conceal dockerhub/token\n"
+        exit 1
+    elif [[ "$1" == "--version" ]] || [[ "$1" == "-v" ]]; then
+        echo -e "\nconceal version 1.0.0\n"
+        exit 1
+    elif [[ "$1" == "--help" ]] || [[ "$1" == "-h" ]]; then
+        echo -e "\nAdd secret to Keychain:\t$ conceal service/secrettype"
+        echo -e "Check version:\t\t$ conceal --version/-v"
+        echo -e "Project home:\t\thttps://github.com/infamousjoeg/conceal\n"
+        exit 1
+    fi
+}
+
+check_distro() {
+    # Check for linux or darwin, exit if not found.
+    DISTRO=$(uname | tr "[:upper:]" "[:lower:]")
+    if [[ "${DISTRO}" != "darwin" ]]; then
+        echo -e "\n[ERROR] conceal only supports MacOS currently."
+        echo -e "\n\nExiting conceal...\n"
+        exit 1
+    fi
+}
+
+prompt_secret() {
+    # Request the secret in a secure manner during conceal run
+    unset -v secret
+    set +o allexport
+    IFS= read -rsp 'Please enter the secret value: ' secret
+    echo "$secret"
+}
+
+add_secret() {
+    # Add the secret to MacOS Keychain Access
+    security add-generic-password -a "$1" -s summon -w "$2"
+    echo -e "\nAdded ${1} successfully to Keychain Access."
+}
+
+check_secret() {
+    # Check for the recently added secret in MacOS Keychain Access
+    if [[ $(security find-generic-password -a "$1" -s summon) == "security: SecKeychainSearchCopyNext: The specified item could not be found in the keychain." ]]; then
+        echo -e "\n[ERROR] An error occurred when verifying secret was added."
+        exit 1
+    fi
+}
+
+main "$@"
